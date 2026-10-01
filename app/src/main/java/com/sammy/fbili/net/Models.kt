@@ -277,7 +277,7 @@ data class Episode(
 
 // ---------- 收藏 / 关注 ----------
 @Serializable data class FavFolder(@Serializable(with = LLong::class) val id: Long = 0, val title: String = "", @SerialName("media_count") @Serializable(with = LLong::class) val mediaCount: Long = 0)
-@Serializable data class FavMedia(val id: String = "", val title: String = "", val cover: String = "", val intro: String = "", val upper: Owner? = null, @Serializable(with = Dur::class) val duration: Long = 0)
+@Serializable data class FavMedia(val id: String = "", val bvid: String = "", val title: String = "", val cover: String = "", val intro: String = "", val upper: Owner? = null, @Serializable(with = Dur::class) val duration: Long = 0)
 @Serializable data class RelationUser(@Serializable(with = LLong::class) val mid: Long = 0, val uname: String = "", val face: String = "", val sign: String = "")
 
 // ---------- 宽松取值助手（易变接口专用） ----------

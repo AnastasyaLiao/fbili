@@ -56,6 +56,14 @@ class PlayerCtl(private val context: Context) {
 
     fun bindSurface(sv: SurfaceView) { exo.setVideoSurface(sv.holder.surface) }
 
+    /** 视频显示比例（含像素宽高比校正）；未出画面时按 16:9 */
+    fun aspect(): Float {
+        val vs = exo.videoSize
+        if (vs.width <= 0 || vs.height <= 0) return 16f / 9f
+        val par = if (vs.pixelWidthHeightRatio > 0f) vs.pixelWidthHeightRatio else 1f
+        return (vs.width * par) / vs.height
+    }
+
     fun playDash(play: PlayResult, video: Stream, audio: Stream?, startMs: Long) {
         val vUrl = (listOf(video.baseUrl) + video.backupUrl).firstOrNull { it.isNotEmpty() } ?: return
         val vSrc = ProgressiveMediaSource.Factory(httpFactory)

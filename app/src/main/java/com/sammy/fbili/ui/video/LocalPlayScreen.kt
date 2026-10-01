@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +47,7 @@ fun LocalPlayScreen(path: String, title: String, aid: Long, onBack: () -> Unit) 
     var playing by remember { mutableStateOf(false) }
     var pos by remember { mutableLongStateOf(0L) }
     var dur by remember { mutableLongStateOf(0L) }
+    var aspect by remember { mutableFloatStateOf(16f / 9f) }
 
     LaunchedEffect(path) { ctl.playFile(path) }
     LaunchedEffect(ctl) {
@@ -52,6 +55,7 @@ fun LocalPlayScreen(path: String, title: String, aid: Long, onBack: () -> Unit) 
             playing = ctl.exo.isPlaying
             pos = ctl.exo.currentPosition.coerceAtLeast(0)
             dur = ctl.exo.duration.coerceAtLeast(0)
+            aspect = ctl.aspect()
             delay(400)
         }
     }
@@ -59,7 +63,7 @@ fun LocalPlayScreen(path: String, title: String, aid: Long, onBack: () -> Unit) 
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(factory = { c -> SurfaceView(c) }, update = { ctl.bindSurface(it) },
-            modifier = Modifier.matchParentSize())
+            modifier = Modifier.align(Alignment.Center).aspectRatio(aspect))
         Row(
             Modifier.align(Alignment.TopStart).fillMaxWidth().padding(6.dp),
         ) {

@@ -7,6 +7,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
@@ -57,10 +58,12 @@ object Net {
 
                 override fun loadForRequest(url: HttpUrl): List<Cookie> =
                     cookies.mapNotNull { (k, v) ->
+                        // 注意：domain 不能带前导点（OkHttp 4.12 对 ".bilibili.com" 抛
+                        // IllegalArgumentException，曾被 runCatching 静默吞掉导致登录 cookie 从不发送）
                         runCatching {
                             Cookie.Builder().name(k).value(v)
-                                .domain(".bilibili.com").httpOnly().build()
-                        }.getOrNull()
+                                .domain("bilibili.com").httpOnly().build()
+                        }.onFailure { android.util.Log.w("fbili-cookie", "drop $k", it) }.getOrNull()
                     }
             })
             .connectTimeout(12, TimeUnit.SECONDS)
@@ -147,7 +150,10 @@ object Net {
         if (code == null && obj["error"] != null) {
             throw BiliError(-2, obj["error"]?.jsonPrimitive?.contentOrNull ?: "未知错误")
         }
-        return obj["data"] ?: obj["result"] ?: JsonObject(emptyMap())
+        // data 可能是 JsonNull（无权限/空结果），统一降级为空对象，避免 asT 崩在调用方
+        val data = obj["data"]
+        if (data == null || data is JsonNull) return obj["result"] ?: JsonObject(emptyMap())
+        return data
     }
 
     /** 裸 JSON（无信封），如弹幕 XML 之外的接口 */

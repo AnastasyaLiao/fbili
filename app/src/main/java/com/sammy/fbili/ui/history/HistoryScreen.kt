@@ -92,7 +92,7 @@ fun HistoryScreen(onVideo: (String, Long) -> Unit, onBack: () -> Unit) {
             ListRow(
                 title = title,
                 cover = it.str("cover", "pic").normUrl(),
-                sub = it.str("device", "keyword"),
+                sub = it.str("author_name", "keyword"),
                 extra = it.str("view_at", "name").let { _ ->
                     "观看于 ${timeAgo(it.num("view_at"))} · ${fmtDur(it.num("duration"))}"
                 },

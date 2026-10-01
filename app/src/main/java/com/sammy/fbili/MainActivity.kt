@@ -103,7 +103,7 @@ fun AppRoot() {
         ) {
             composable("home") {
                 HomeScreen(
-                    onVideo = { b, a -> nav.navigate("video/$b/$a/0") },
+                    onVideo = { b, a -> nav.navigate(videoRoute(b, a)) },
                     onSearch = { nav.navigate("search/") },
                     onLive = { id -> nav.navigate("live/$id") },
                     onLogin = { if (com.sammy.fbili.data.Account.isLogin) nav.navigate("user/${com.sammy.fbili.data.Account.uid()}") else nav.navigate("login") },
@@ -111,11 +111,11 @@ fun AppRoot() {
             }
             composable("bangumi") {
                 BangumiScreen(onSeason = { sid -> nav.navigate("season/$sid") },
-                    onVideo = { b, a -> nav.navigate("video/$b/$a/0") })
+                    onVideo = { b, a -> nav.navigate(videoRoute(b, a)) })
             }
             composable("dynamic") {
                 DynamicScreen(
-                    onVideo = { b, a -> nav.navigate("video/$b/$a/0") },
+                    onVideo = { b, a -> nav.navigate(videoRoute(b, a)) },
                     onUser = { m -> nav.navigate("user/$m") },
                     onLogin = { nav.navigate("login") },
                 )
@@ -134,17 +134,17 @@ fun AppRoot() {
             composable("search/{kw}") { e ->
                 SearchScreen(
                     keyword = e.arguments?.getString("kw").orEmpty(),
-                    onVideo = { b, a -> nav.navigate("video/$b/$a/0") },
+                    onVideo = { b, a -> nav.navigate(videoRoute(b, a)) },
                     onSeason = { sid -> nav.navigate("season/$sid") },
                     onUser = { m -> nav.navigate("user/$m") },
                 )
             }
             composable("video/{bvid}/{aid}/{ep}") { e ->
                 VideoScreen(
-                    bvid = e.arguments?.getString("bvid").orEmpty(),
+                    bvid = e.arguments?.getString("bvid")?.takeIf { it != "-" }.orEmpty(),
                     aid = e.arguments?.getString("aid")?.toLongOrNull() ?: 0,
                     epId = e.arguments?.getString("ep")?.toLongOrNull() ?: 0,
-                    onVideo = { b, a -> nav.navigate("video/$b/$a/0") },
+                    onVideo = { b, a -> nav.navigate(videoRoute(b, a)) },
                     onSeason = { sid -> nav.navigate("season/$sid") },
                     onUser = { m -> nav.navigate("user/$m") },
                     onBack = { nav.popBackStack() },
@@ -153,14 +153,14 @@ fun AppRoot() {
             composable("season/{sid}") { e ->
                 SeasonHost(
                     seasonId = e.arguments?.getString("sid")?.toLongOrNull() ?: 0,
-                    onVideo = { b, a, ep -> nav.navigate("video/$b/$a/$ep") },
+                    onVideo = { b, a, ep -> nav.navigate(videoRoute(b, a, ep)) },
                     onBack = { nav.popBackStack() },
                 )
             }
             composable("user/{mid}") { e ->
                 UserScreen(
                     mid = e.arguments?.getString("mid")?.toLongOrNull() ?: 0,
-                    onVideo = { b, a -> nav.navigate("video/$b/$a/0") },
+                    onVideo = { b, a -> nav.navigate(videoRoute(b, a)) },
                     onBack = { nav.popBackStack() },
                 )
             }
@@ -175,7 +175,7 @@ fun AppRoot() {
             }
             composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
             composable("history") {
-                HistoryScreen(onVideo = { b, a -> nav.navigate("video/$b/$a/0") }, onBack = { nav.popBackStack() })
+                HistoryScreen(onVideo = { b, a -> nav.navigate(videoRoute(b, a)) }, onBack = { nav.popBackStack() })
             }
             composable("favroot") {
                 FavFoldersScreen(onFolder = { fid, t -> nav.navigate("fav/$fid/${android.net.Uri.encode(t)}") },
@@ -185,7 +185,7 @@ fun AppRoot() {
                 FavResourcesScreen(
                     fid = e.arguments?.getString("fid")?.toLongOrNull() ?: 0,
                     title = e.arguments?.getString("title").orEmpty(),
-                    onVideo = { b, a -> nav.navigate("video/$b/$a/0") },
+                    onVideo = { b, a -> nav.navigate(videoRoute(b, a)) },
                     onBack = { nav.popBackStack() },
                 )
             }
@@ -213,6 +213,10 @@ fun AppRoot() {
 private fun SeasonHost(seasonId: Long, onVideo: (String, Long, Long) -> Unit, onBack: () -> Unit) {
     com.sammy.fbili.ui.bangumi.SeasonScreen(seasonId, onVideo, onBack)
 }
+
+// 空 bvid 用占位符 "-" 填充，避免 "video//aid/0" 出现连续斜杠导致路由段错配
+private fun videoRoute(b: String, a: Long, ep: Long = 0): String =
+    "video/${b.ifEmpty { "-" }}/$a/$ep"
 
 @Composable
 private fun FollowingScreen(onUser: (Long) -> Unit, onBack: () -> Unit) {

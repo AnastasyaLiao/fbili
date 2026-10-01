@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.sammy.fbili.net.Api
 import com.sammy.fbili.ui.player.PlayerCtl
+import kotlinx.coroutines.delay
 
 @Composable
 fun LivePlayScreen(roomId: Long, onBack: () -> Unit) {
@@ -45,7 +48,9 @@ fun LivePlayScreen(roomId: Long, onBack: () -> Unit) {
     var ok by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }
     var tick by remember { mutableIntStateOf(0) }
+    var aspect by remember { mutableFloatStateOf(16f / 9f) }
     LaunchedEffect(ctl) { ctl.onError = { msg -> err = msg } }
+    LaunchedEffect(ctl) { while (true) { aspect = ctl.aspect(); delay(800) } }
 
     LaunchedEffect(roomId, tick) {
         ok = false; err = null; state = "正在获取直播流…"
@@ -65,7 +70,7 @@ fun LivePlayScreen(roomId: Long, onBack: () -> Unit) {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(factory = { c -> SurfaceView(c) }, update = { ctl.bindSurface(it) },
-            modifier = Modifier.matchParentSize())
+            modifier = Modifier.align(Alignment.Center).aspectRatio(aspect))
         if (!ok) {
             Column(
                 Modifier.align(Alignment.Center).padding(20.dp),

@@ -198,10 +198,15 @@ object Api {
             "offset" to offset, "features" to "itemOpusStyle"
         ), referer = WEB).asT()
 
-    suspend fun historyCursor(max: Long, viewAt: Long): JsonObject =
-        Net.api(Net.API, "/x/v2/history/cursor", mapOf(
-            "type" to "all", "business" to "archive", "ps" to "20", "max" to "$max", "view_at" to "$viewAt"
-        ), referer = WEB).asT()
+    // 历史：/x/v2/history/cursor 已废弃（返回非 JSON），改用 web 端点。
+    // 参数严格按 bili_you HistoryApi.getVideoViewHistory：type=archive，首屏不发 max/view_at
+    // （传 0 会被判 -400 请求错误），并额外带 WBI 签名（与网页端一致，防 -352）
+    suspend fun historyCursor(max: Long, viewAt: Long): JsonObject {
+        val base = mutableMapOf("type" to "archive", "business" to "archive", "ps" to "20")
+        if (max > 0) base["max"] = "$max"
+        if (viewAt > 0) base["view_at"] = "$viewAt"
+        return Net.api(Net.API, "/x/web-interface/history/cursor", Wbi.sign(base), referer = WEB).asT()
+    }
 
     suspend fun favFolders(mid: Long): List<FavFolder> =
         Net.api(Net.API, "/x/v3/fav/folder/created/list-all", mapOf("up_mid" to "$mid"), referer = WEB)

@@ -44,7 +44,7 @@ fun FavFoldersScreen(onFolder: (Long, String) -> Unit, onBack: () -> Unit) {
     var tick by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(me?.mid, tick) {
-        val mid = me?.mid ?: run { error = "请先登录"; return@LaunchedEffect }
+        val mid = Account.uid().takeIf { it > 0 } ?: me?.mid ?: run { error = "请先登录"; return@LaunchedEffect }
         error = null
         try { folders = Api.favFolders(mid) } catch (e: Exception) { error = e.message }
     }
@@ -74,6 +74,7 @@ fun FavResourcesScreen(
     var hasMore by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
 
     suspend fun load(reset: Boolean) {
         if (loading) return
@@ -108,8 +109,12 @@ fun FavResourcesScreen(
                 sub = m.upper?.name ?: "",
                 extra = m.intro.take(40).ifEmpty { fmtDur(m.duration) },
                 onClick = {
-                    val bv = m.id.ifEmpty { m.id }
-                    if (bv.startsWith("BV")) onVideo(bv, 0)
+                    // medias.id 是数字 aid，bvid 才是可播标识；番剧等非稿件条目给出提示
+                    when {
+                        m.bvid.startsWith("BV") -> onVideo(m.bvid, 0)
+                        else -> android.widget.Toast.makeText(
+                            ctx, "该内容类型暂不支持在此打开", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 },
             )
         }
