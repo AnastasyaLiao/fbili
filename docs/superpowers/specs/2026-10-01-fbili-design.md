@@ -58,6 +58,10 @@
 
 **实测通过（2026-10-01 批次，R8 开启后 2.5MB APK）**：底部导航仅剩首页/我的；设置改 480P→force-stop→重启仍为 480P（DataStore 持久化）且登录态跨重装保留；收藏夹返回键+四夹首视频封面；视频页无相关推荐、评论头像（34dp 圆头像）正常；暂停时中央播放键可点（z-order 修复）、圆点进度条+拖动时间预览；首页下拉刷新；搜索页返回键/胶囊输入框/圆角搜索按钮/历史搜索词条持久化+清空。修复两处实测暴露的接口问题：旧 `/x/v2/reply` 对未签名请求静默返回空列表→迁移到 WBI 签名 `/x/v2/reply/wbi/main`；新端点头像字段改名 `face`→`avatar`，模型双字段兼容。
 
+**实测通过（Android 8.1 / API 27 AVD 1080x1920，3.45MB 现发布包）**：`aapt dump badging` 确认包 minSdk 21；`install -r` 成功；冷启动 `am start -W` TotalTime 831ms，logcat 零 FATAL/AndroidRuntime；首页推荐流真实数据+封面图加载；点开视频详情页并真实在线播放（进度推进至 1:30/23:28，圆点进度条控制层正常）；系统深色切换后 App 纯黑底生效。
+
+**Android 4.x 结论（不可运行，非缺陷）**：APK manifest minSdkVersion=21，Android 4.x（API 15–19）包管理器会以 INSTALL_FAILED_OLDER_SDK 直接拒装；且 Compose、AndroidX（Activity 1.9 等）、Media3、OkHttp 4.x 全线官方下限即 API 21，低于 21 需放弃 Compose 重写 UI 层。本机亦无 API 19 系统镜像（Apple Silicon 模拟器不支持 x86 老镜像），无法真装演示，判定依据为包与依赖的硬下限。
+
 **未实测（环境受限，需在用户手机复测）**：
 - 扫码/短信登录真机链路：接口与状态机已按官方协议实现并编译通过，未走完一次真实登录（需手机 B站 App 扫码）。
 - 本地文件播放（playFile 路径）：API 21 模拟器 FUSE 导致推送文件对应用不可见，改为「缓存」入口验证；下载器已加内部存储回退，真机可用。
