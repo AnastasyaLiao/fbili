@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -20,10 +22,18 @@ android {
 
     signingConfigs {
         create("self") {
-            storeFile = file("../fbili.jks")
-            storePassword = "__NOT_IN_REPO__"
-            keyAlias = "fbili"
-            keyPassword = "__NOT_IN_REPO__"
+            // 签名凭据不入库：放在本机 app/../local.properties（已被 .gitignore 排除）
+            // fbili.storeFile=...jks / fbili.storePassword=... / fbili.keyAlias=... / fbili.keyPassword=...
+            val p = Properties().apply {
+                val f = rootProject.file("local.properties")
+                if (f.exists()) f.inputStream().use { load(it) }
+            }
+            (p.getProperty("fbili.storeFile"))?.let {
+                storeFile = rootProject.file(it)
+                storePassword = p.getProperty("fbili.storePassword")
+                keyAlias = p.getProperty("fbili.keyAlias")
+                keyPassword = p.getProperty("fbili.keyPassword")
+            }
         }
     }
 

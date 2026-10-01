@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动图标底色：夜间近黑，与 tv_dark 图标背景同色 -->
+    <color name="ic_launcher_bg">#FF060916</color>
+</resources>

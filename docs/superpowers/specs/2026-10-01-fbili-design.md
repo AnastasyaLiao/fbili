@@ -68,9 +68,10 @@
 ## 构建与交付
 
 ```bash
-# 仓库根目录
+# 仓库根目录（Gradle 8.11.1 + JDK 21）
 gradle assembleRelease
-# 产物 app/build/outputs/apk/release/app-release.apk（自签 fbili.jks，口令见 build.gradle.kts）
+# 产物 app/build/outputs/apk/release/app-release.apk
 ```
 
-签名 keystore `fbili.jks` 不入库（.gitignore），交付时随目录保留，请自行备份。
+发布签名为自签 `fbili.jks`，不入库（.gitignore）；凭据放在本机 `local.properties`
+（`fbili.storeFile / fbili.storePassword / fbili.keyAlias / fbili.keyPassword` 四项），请自行备份。
