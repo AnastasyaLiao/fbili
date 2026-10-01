@@ -205,7 +205,12 @@ data class Reply(
     val liked: Boolean = false,
 )
 @Serializable data class RContent(val message: String = "")
-@Serializable data class Member(val uname: String = "", val face: String = "", @Serializable(with = LLong::class) val mid: Long = 0)
+@Serializable
+data class Member(val uname: String = "", val face: String = "", val avatar: String = "",
+                  @Serializable(with = LLong::class) val mid: Long = 0) {
+    /** 新 wbi/main 端点把头像字段改名成 avatar，旧端点仍是 face，统一从这里取 */
+    val pic: String get() = face.ifEmpty { avatar }
+}
 
 // ---------- 搜索 ----------
 @Serializable

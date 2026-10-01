@@ -114,10 +114,11 @@ object Api {
     }
 
     // ---------- 评论 ----------
+    // 旧端点 /x/v2/reply 已对未签名请求静默返回空列表；改用 WBI 签名的 wbi/main（mode 3=热度 2=最新）
     suspend fun replies(aid: Long, pn: Int, hot: Boolean): ReplyPage =
-        Net.api(Net.API, "/x/v2/reply", mapOf(
-            "type" to "1", "oid" to "$aid", "pn" to "$pn", "ps" to "20", "sort" to if (hot) "2" else "0"
-        ), referer = WEB).asT()
+        Net.api(Net.API, "/x/v2/reply/wbi/main", Wbi.sign(mapOf(
+            "type" to "1", "oid" to "$aid", "pn" to "$pn", "ps" to "20", "mode" to if (hot) "3" else "2"
+        )), referer = WEB).asT()
 
     suspend fun subReplies(aid: Long, root: Long, pn: Int): List<Reply> =
         Net.api(Net.API, "/x/v2/reply/reply", mapOf(

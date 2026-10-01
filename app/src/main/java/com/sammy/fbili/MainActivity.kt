@@ -8,9 +8,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -27,8 +25,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.sammy.fbili.data.Settings
-import com.sammy.fbili.ui.bangumi.BangumiScreen
-import com.sammy.fbili.ui.dynamic.DynamicScreen
 import com.sammy.fbili.ui.fav.FavFoldersScreen
 import com.sammy.fbili.ui.fav.FavResourcesScreen
 import com.sammy.fbili.ui.history.HistoryScreen
@@ -69,7 +65,7 @@ fun AppRoot() {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: "home"
-    val roots = setOf("home", "bangumi", "dynamic", "mine")
+    val roots = setOf("home", "mine")
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -77,8 +73,6 @@ fun AppRoot() {
             if (route in roots) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 val items = listOf(
                     Triple("home", "首页", Icons.Filled.Home),
-                    Triple("bangumi", "番剧", Icons.Filled.Star),
-                    Triple("dynamic", "动态", Icons.Filled.Menu),
                     Triple("mine", "我的", Icons.Filled.Person),
                 )
                 items.forEach { (r, name, icon) ->
@@ -109,17 +103,6 @@ fun AppRoot() {
                     onLogin = { if (com.sammy.fbili.data.Account.isLogin) nav.navigate("user/${com.sammy.fbili.data.Account.uid()}") else nav.navigate("login") },
                 )
             }
-            composable("bangumi") {
-                BangumiScreen(onSeason = { sid -> nav.navigate("season/$sid") },
-                    onVideo = { b, a -> nav.navigate(videoRoute(b, a)) })
-            }
-            composable("dynamic") {
-                DynamicScreen(
-                    onVideo = { b, a -> nav.navigate(videoRoute(b, a)) },
-                    onUser = { m -> nav.navigate("user/$m") },
-                    onLogin = { nav.navigate("login") },
-                )
-            }
             composable("mine") {
                 MineScreen(
                     onLogin = { nav.navigate("login") },
@@ -137,6 +120,7 @@ fun AppRoot() {
                     onVideo = { b, a -> nav.navigate(videoRoute(b, a)) },
                     onSeason = { sid -> nav.navigate("season/$sid") },
                     onUser = { m -> nav.navigate("user/$m") },
+                    onBack = { nav.popBackStack() },
                 )
             }
             composable("video/{bvid}/{aid}/{ep}") { e ->

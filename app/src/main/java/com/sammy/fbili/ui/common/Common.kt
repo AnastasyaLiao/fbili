@@ -84,11 +84,20 @@ fun timeAgo(unix: Long): String {
 fun stripHtml(s: String): String =
     s.replace(Regex("<[^>]*>"), "").replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'")
 
+/** hdslb CDN 自带缩放语法：低端机按显示尺寸解码，省内存防卡顿（非 hdslb 域名原样返回） */
+fun String.coverThumb(): String =
+    if (contains("hdslb.com") && !contains("@")) "$this@480w_300h.jpg" else this
+
+fun String.faceThumb(): String =
+    if (contains("hdslb.com") && !contains("@")) "$this@96x96.jpg" else this
+
 /** 通用分页引擎：失败保留已有数据，只露重试按钮——不会再整页白屏 */
 @Stable
 class Paging<T>(val pageSizeDesc: String = "下拉加载更多", private val load: suspend (Int) -> List<T>) {
     val items = mutableStateListOf<T>()
     var loading by mutableStateOf(false)
+        private set
+    var refreshing by mutableStateOf(false)
         private set
     var error by mutableStateOf<String?>(null)
         private set
@@ -97,7 +106,7 @@ class Paging<T>(val pageSizeDesc: String = "下拉加载更多", private val loa
     var page = 0
         private set
 
-    fun refresh() = fetch(1) { list ->
+    fun refresh() = fetch(1, refresh = true) { list ->
         items.clear()
         items.addAll(list)
     }
@@ -107,9 +116,9 @@ class Paging<T>(val pageSizeDesc: String = "下拉加载更多", private val loa
         fetch(page + 1) { items.addAll(it) }
     }
 
-    private fun fetch(p: Int, apply: (List<T>) -> Unit) {
+    private fun fetch(p: Int, refresh: Boolean = false, apply: (List<T>) -> Unit) {
         if (loading) return
-        loading = true
+        loading = true; refreshing = refresh
         error = null
         Account.AppScope.launch {
             try {
@@ -121,9 +130,24 @@ class Paging<T>(val pageSizeDesc: String = "下拉加载更多", private val loa
                 error = e.message ?: "加载失败"
             } finally {
                 loading = false
+                refreshing = false
             }
         }
     }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun PtrBox(
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit,
+) {
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = refreshing, onRefresh = onRefresh, modifier = modifier,
+        content = content,
+    )
 }
 
 @Composable
@@ -144,13 +168,15 @@ fun <T> PagedList(
     LaunchedEffect(state, paging) {
         androidx.compose.runtime.snapshotFlow { atBottom.value }.collect { if (it) paging.more() }
     }
-    LazyColumn(modifier.fillMaxSize(), state = state) {
-        items(paging.items.size) { i -> itemContent(paging.items[i]) }
-        item { PagingFooter(paging) }
-        if (paging.items.isEmpty() && paging.error != null) {
-            item { Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                Button(onClick = { paging.refresh() }) { Text("重新加载") }
-            } }
+    PtrBox(refreshing = paging.refreshing, onRefresh = { paging.refresh() }, modifier = modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = state) {
+            items(paging.items.size) { i -> itemContent(paging.items[i]) }
+            item { PagingFooter(paging) }
+            if (paging.items.isEmpty() && paging.error != null) {
+                item { Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                    Button(onClick = { paging.refresh() }) { Text("重新加载") }
+                } }
+            }
         }
     }
 }
@@ -174,16 +200,18 @@ fun <T> PagedGrid(
     LaunchedEffect(state, paging) {
         androidx.compose.runtime.snapshotFlow { atBottom.value }.collect { if (it) paging.more() }
     }
-    LazyVerticalGrid(
-        GridCells.Fixed(2),
-        modifier.fillMaxSize(),
-        state = state,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        contentPadding = PaddingValues(horizontal = 10.dp),
-    ) {
-        items(paging.items.size) { i -> itemContent(paging.items[i]) }
-        item(span = { GridItemSpan(maxLineSpan) }) { PagingFooter(paging) }
+    PtrBox(refreshing = paging.refreshing, onRefresh = { paging.refresh() }, modifier = modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            GridCells.Fixed(2),
+            Modifier.fillMaxSize(),
+            state = state,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp),
+        ) {
+            items(paging.items.size) { i -> itemContent(paging.items[i]) }
+            item(span = { GridItemSpan(maxLineSpan) }) { PagingFooter(paging) }
+        }
     }
 }
 
@@ -208,7 +236,7 @@ private fun <T> PagingFooter(paging: Paging<T>) {
 fun Cover(url: String, modifier: Modifier = Modifier, dur: Long = -1, badge: String = "") {
     Box(modifier = modifier.clip(RoundedCornerShape(8.dp))) {
         AsyncImage(
-            model = url.normUrl(), contentDescription = null,
+            model = url.normUrl().coverThumb(), contentDescription = null,
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
             contentScale = ContentScale.Crop,
         )

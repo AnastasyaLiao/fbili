@@ -135,6 +135,8 @@ object Net {
 
     private fun unwrap(text: String): JsonElement {
         val obj = runCatching { json.parseToJsonElement(text).jsonObject }.getOrElse {
+            // B站对风控网络会直接返回 HTML 页而非 JSON，给出可读提示而不是"解析失败"
+            if (text.trimStart().startsWith("<")) throw BiliError(-352, "B站风控拦截了当前网络，请稍后重试或更换网络")
             throw BiliError(-1, "返回数据解析失败")
         }
         val code = obj["code"]?.jsonPrimitive?.intOrNull

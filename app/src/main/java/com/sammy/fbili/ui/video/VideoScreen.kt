@@ -7,6 +7,7 @@ import android.content.Intent
 import android.media.AudioManager
 import android.view.SurfaceView
 import android.widget.Toast
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -51,7 +52,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -70,7 +70,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -97,6 +99,7 @@ import com.sammy.fbili.net.str
 import com.sammy.fbili.ui.common.Cover
 import com.sammy.fbili.ui.common.ErrorBox
 import com.sammy.fbili.ui.common.IconPause
+import com.sammy.fbili.ui.common.faceThumb
 import com.sammy.fbili.ui.common.fmtCount
 import com.sammy.fbili.ui.common.fmtDur
 import com.sammy.fbili.ui.common.timeAgo
@@ -104,6 +107,7 @@ import com.sammy.fbili.ui.danmaku.DanmakuRepo
 import com.sammy.fbili.ui.danmaku.DanmakuView
 import com.sammy.fbili.ui.player.PlayerCtl
 import com.sammy.fbili.ui.player.StreamPicker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -132,7 +136,6 @@ fun VideoScreen(
     var epIdx by remember { mutableIntStateOf(0) }
     var pageIdx by remember { mutableIntStateOf(0) }
     var play by remember { mutableStateOf<PlayResult?>(null) }
-    var related by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
 
     var loadErr by remember { mutableStateOf<String?>(null) }
     var reloadTick by remember { mutableIntStateOf(0) }
@@ -156,6 +159,8 @@ fun VideoScreen(
     var dmLocal by remember { mutableStateOf("") }
     // 手势反馈浮层：类型 + 文案（seek/亮度/音量），松手清除
     var osd by remember { mutableStateOf<String?>(null) }
+    // 进度条拖拽中的目标比例（null=未拖拽），松手提交后清除
+    var scrubF by remember { mutableStateOf<Float?>(null) }
 
     var dmOn by remember { mutableStateOf(Settings.danmakuOn.value) }
     var dmView by remember { mutableStateOf<DanmakuView?>(null) }
@@ -176,6 +181,7 @@ fun VideoScreen(
     var cMore by remember { mutableStateOf(true) }
     var cHot by remember { mutableStateOf(false) }
     var cLoading by remember { mutableStateOf(false) }
+    var cError by remember { mutableStateOf<String?>(null) }
     var replyTarget by remember { mutableStateOf<Pair<Long, String>?>(null) }
     var cInput by remember { mutableStateOf("") }
     var subSheet by remember { mutableStateOf<Reply?>(null) }
@@ -235,7 +241,6 @@ fun VideoScreen(
                 val v = Api.view(bvid, aid)
                 view = v
                 pageIdx = v.pages.indexOfFirst { it.cid == v.cid }.coerceAtLeast(0)
-                related = runCatching { Api.related(v.bvid) }.getOrDefault(emptyList())
                 liked = runCatching { Api.hasLike(v.bvid) }.getOrDefault(false)
                 coined = runCatching { Api.coinInfo(v.bvid).toInt() }.getOrDefault(0)
                 faved = v.isFav
@@ -286,17 +291,28 @@ fun VideoScreen(
         act?.setLandscape(full && aspect >= 1f)
     }
 
+    // 代数令牌：LaunchedEffect 重启会取消旧请求，新 reset 必须能立刻接管而不是被 cLoading 挡掉
+    var cGen = 0
     suspend fun loadComments(reset: Boolean) {
-        if (cLoading) return
+        if (!reset && cLoading) return
+        val my = ++cGen
         cLoading = true
         try {
             val p = if (reset) 1 else cPage + 1
             val page = Api.replies(curAid(), p, cHot)
+            if (my != cGen) return
+            cError = null
             if (reset) { comments = page.replies; cMore = page.replies.isNotEmpty() && p < (page.cursor?.allCount?.div(20)?.plus(1) ?: 999) }
             else { comments = comments + page.replies; cMore = page.replies.isNotEmpty() }
             cPage = p
-        } catch (e: Exception) { /* 保留已有评论 */ }
-        cLoading = false
+        } catch (e: CancellationException) {
+            throw e // 重组导致的取消不是错误，别把它当失败上屏
+        } catch (e: Exception) {
+            // 保留已有评论，但首页失败要让用户看见原因
+            if (my == cGen && reset && comments.isEmpty()) cError = e.message ?: "评论加载失败"
+        } finally {
+            if (my == cGen) cLoading = false
+        }
     }
     LaunchedEffect(view, season, reloadTick) { if (curAid() > 0) loadComments(true) }
 
@@ -328,13 +344,6 @@ fun VideoScreen(
                 CircularProgressIndicator(color = Color.White,
                     modifier = Modifier.align(Alignment.Center).size(34.dp))
             }
-            // 中央播放/暂停大按钮（暂停时常驻）
-            if (!isPlaying && !loadingStream) {
-                Icon(Icons.Filled.PlayArrow, null, tint = Color(0xE6FFFFFF),
-                    modifier = Modifier.align(Alignment.Center).size(54.dp)
-                        .clip(CircleShape).background(Color(0x55000000))
-                        .clickable { ctl.exo.playWhenReady = true; ctrlTick++ })
-            }
             // 手势层（在控制条之下）
             var wasPlayingBeforeDrag by remember { mutableStateOf(false) }
             Box(Modifier.matchParentSize().playerGestures(
@@ -358,6 +367,18 @@ fun VideoScreen(
                     else { osd = "音量 ${(f * 100).roundToInt()}%"; applyVolume(ctx, f) }
                 },
             ))
+            // 中央播放大按钮：暂停时常驻，画在手势层之上保证可点（修复"点了没反应"）
+            if (!isPlaying && !loadingStream) {
+                Box(
+                    Modifier.align(Alignment.Center).size(64.dp).clip(CircleShape)
+                        .background(Color(0x66000000))
+                        .clickable { ctl.exo.playWhenReady = true; ctrlVisible = true; ctrlTick++ },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.PlayArrow, "播放", tint = Color.White,
+                        modifier = Modifier.size(40.dp))
+                }
+            }
             // OSD 反馈
             osd?.let {
                 Text(it, color = Color.White, fontSize = 13.sp,
@@ -393,30 +414,37 @@ fun VideoScreen(
                     }
                 }
             }
-            // 底部控制条：播放键 + 进度 + 时间 + 全屏
+            // 底部控制条：大号播放键 + 时间 + 圆点进度条 + 全屏
             if (ctrlVisible || !isPlaying) Column(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .background(Color(0x40000000)),
+                    .background(Color(0x66000000)),
             ) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = { ctl.exo.playWhenReady = !ctl.exo.isPlaying; ctrlTick++ }) {
-                        Icon(if (isPlaying) IconPause else Icons.Filled.PlayArrow, null, tint = Color.White)
+                    Box(
+                        Modifier.size(44.dp).clip(CircleShape)
+                            .clickable { ctl.exo.playWhenReady = !ctl.exo.isPlaying; ctrlTick++ },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(if (isPlaying) IconPause else Icons.Filled.PlayArrow,
+                            if (isPlaying) "暂停" else "播放", tint = Color.White,
+                            modifier = Modifier.size(26.dp))
                     }
-                    Text("${fmtDur(posMs / 1000)}/${fmtDur(durMs / 1000)}",
+                    Text(
+                        (if (scrubF != null) fmtDur((scrubF!! * durMs / 1000).toLong()) else fmtDur(posMs / 1000)) +
+                            "/" + fmtDur(durMs / 1000),
                         color = Color.White, fontSize = 11.sp)
-                    var drag by remember { mutableStateOf<Float?>(null) }
-                    Slider(
-                        value = drag ?: if (durMs > 0) (posMs.toFloat() / durMs).coerceIn(0f, 1f) else 0f,
-                        onValueChange = { drag = it },
-                        onValueChangeFinished = {
-                            drag?.let { f ->
-                                val to = (f * durMs).toLong()
-                                ctl.exo.seekTo(to); dmView?.seekTo(to); posMs = to
-                            }
-                            drag = null; ctrlTick++
+                    Spacer(Modifier.width(4.dp))
+                    SeekBar(
+                        frac = scrubF ?: if (durMs > 0) (posMs.toFloat() / durMs).coerceIn(0f, 1f) else 0f,
+                        onScrub = { f -> scrubF = f; ctrlVisible = true; ctrlTick++ },
+                        onCommit = { f ->
+                            scrubF = null
+                            val to = (f * durMs).toLong()
+                            ctl.exo.seekTo(to); dmView?.seekTo(to); posMs = to
+                            ctrlTick++
                         },
                         modifier = Modifier.weight(1f),
                     )
@@ -436,9 +464,9 @@ fun VideoScreen(
             }
         }
         if (tab == 0) IntroTab(
-            view = view, season = season, play = play, curQn = curQn, related = related,
+            view = view, season = season, play = play, curQn = curQn,
             liked = liked, coined = coined, faved = faved, loadErr = loadErr,
-            onUser = onUser, onSeason = onSeason, onVideo = onVideo,
+            onUser = onUser, onSeason = onSeason,
             onLike = {
                 if (!Account.isLogin) { Toast.makeText(ctx, "请先登录", Toast.LENGTH_SHORT).show(); return@IntroTab }
                 scope.launch {
@@ -477,6 +505,8 @@ fun VideoScreen(
         else CommentsTab(
             comments = comments, cMore = cMore, cLoading = cLoading,
             replyCount = view?.stat?.reply ?: 0,
+            error = cError,
+            onUser = onUser,
             onLoadMore = { scope.launch { loadComments(false) } },
             onSort = { cHot = !cHot; scope.launch { loadComments(true) } },
             hot = cHot,
@@ -625,6 +655,52 @@ fun VideoScreen(
     subSheet?.let { target -> SubReplySheet(target, aid = curAid(), onDismiss = { subSheet = null }) }
 }
 
+// ---------- 自绘进度条：3dp 轨道 + 白色圆点滑块（参考主流播放器），触控热区 30dp ----------
+@Composable
+private fun SeekBar(
+    frac: Float,
+    onScrub: (Float) -> Unit,
+    onCommit: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val thumbR = 7.dp
+    var pressed by remember { mutableStateOf(false) }
+    Box(
+        modifier.height(30.dp).pointerInput(Unit) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                pressed = true
+                var last = 0f
+                val usable = (size.width - 2 * thumbR.toPx()).coerceAtLeast(1f)
+                fun fOf(x: Float) = ((x - thumbR.toPx()) / usable).coerceIn(0f, 1f)
+                last = fOf(down.position.x); onScrub(last)
+                while (true) {
+                    val ev = awaitPointerEvent()
+                    val c = ev.changes.firstOrNull() ?: break
+                    if (!c.pressed) break
+                    last = fOf(c.position.x)
+                    onScrub(last)
+                    c.consume()
+                }
+                pressed = false
+                onCommit(last)
+            }
+        }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val cy = size.height / 2f
+            val r = thumbR.toPx()
+            val usable = (size.width - 2 * r).coerceAtLeast(1f)
+            val x = r + frac.coerceIn(0f, 1f) * usable
+            val th = 3.dp.toPx()
+            drawLine(Color(0x59FFFFFF), Offset(r, cy), Offset(size.width - r, cy),
+                strokeWidth = th, cap = StrokeCap.Round)
+            drawLine(Color.White, Offset(r, cy), Offset(x, cy), strokeWidth = th, cap = StrokeCap.Round)
+            drawCircle(Color.White, radius = if (pressed) r * 1.3f else r, center = Offset(x, cy))
+        }
+    }
+}
+
 // ---------- 手势层：单击/双击 + 横拖 seek（全程±60s，松手提交）+ 左半亮度/右半音量 ----------
 private fun Modifier.playerGestures(
     ctx: Context,
@@ -734,8 +810,8 @@ private fun applyVolume(ctx: Context, f: Float) {
 @Composable
 private fun IntroTab(
     view: ViewInfo?, season: Season?, play: PlayResult?, curQn: Int,
-    related: List<VideoItem>, liked: Boolean, coined: Int, faved: Boolean, loadErr: String?,
-    onUser: (Long) -> Unit, onSeason: (Long) -> Unit, onVideo: (String, Long) -> Unit,
+    liked: Boolean, coined: Int, faved: Boolean, loadErr: String?,
+    onUser: (Long) -> Unit, onSeason: (Long) -> Unit,
     onLike: () -> Unit, onCoin: () -> Unit, onFav: () -> Unit, onShare: () -> Unit, onCache: () -> Unit,
     onPart: (Int) -> Unit, onEp: (Int) -> Unit, onRetryStream: () -> Unit,
 ) {
@@ -747,7 +823,7 @@ private fun IntroTab(
                 view?.let { v ->
                     Row(verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().clickable { v.owner?.mid?.let(onUser) }) {
-                        AsyncImage(model = v.owner?.face?.normUrl(), contentDescription = null,
+                        AsyncImage(model = v.owner?.face?.normUrl()?.faceThumb(), contentDescription = null,
                             modifier = Modifier.size(40.dp).clip(CircleShape))
                         Spacer(Modifier.width(12.dp))
                         Text(v.owner?.name ?: "", fontSize = 15.sp,
@@ -818,15 +894,6 @@ private fun IntroTab(
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surfaceVariant))
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-        if (related.isNotEmpty()) {
-            item { Text("相关推荐", fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
-            items(related.take(20)) { v ->
-                RelatedTile(v) { onVideo(v.bvid, v.aid) }
             }
         }
         item { Spacer(Modifier.height(20.dp)) }
@@ -848,31 +915,14 @@ private fun RowScope.ActBtn(glyph: String, text: String, active: Boolean, onClic
     }
 }
 
-/** 相关推荐横卡：左封面 16:10 + 右侧标题/UP/数据（bili_you VideoTileItem 规格） */
-@Composable
-private fun RelatedTile(v: VideoItem, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Box {
-            Cover(v.pic, Modifier.width(150.dp).height(94.dp), dur = v.duration)
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.fillMaxHeight()) {
-            Text(v.title, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.weight(1f))
-            Text(v.owner?.name ?: "", fontSize = 12.sp, maxLines = 1,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("${fmtCount(v.stat?.view ?: 0)}播放 · ${timeAgo(v.pubdate)}", fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
+/** 相关推荐已按需求移除：简介页只保留 UP 主信息、稿件元信息与分P */
 
 // ---------- 评论 Tab ----------
 @Composable
 private fun CommentsTab(
     comments: List<Reply>, cMore: Boolean, cLoading: Boolean, replyCount: Long, hot: Boolean,
-    onLoadMore: () -> Unit, onSort: () -> Unit,
+    error: String?,
+    onLoadMore: () -> Unit, onSort: () -> Unit, onUser: (Long) -> Unit,
     onLike: (Reply) -> Unit, onReply: (Reply) -> Unit, onSub: (Reply) -> Unit,
 ) {
     LazyColumn(Modifier.fillMaxSize()) {
@@ -885,12 +935,15 @@ private fun CommentsTab(
             }
         }
         items(comments) { r ->
-            CommentItem(r, onLike = { onLike(r) }, onReply = { onReply(r) }, onSub = { onSub(r) })
+            CommentItem(r, onUser = onUser,
+                onLike = { onLike(r) }, onReply = { onReply(r) }, onSub = { onSub(r) })
         }
         item {
             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                 when {
                     cLoading -> Text("加载中…", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    comments.isEmpty() && error != null -> Text(error, fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.error)
                     cMore -> TextButton(onClick = onLoadMore) { Text("加载更多评论") }
                     comments.isNotEmpty() -> Text("没有更多评论了", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -900,11 +953,12 @@ private fun CommentsTab(
 }
 
 @Composable
-private fun CommentItem(r: Reply, onLike: () -> Unit, onReply: () -> Unit, onSub: () -> Unit) {
+private fun CommentItem(r: Reply, onUser: (Long) -> Unit, onLike: () -> Unit, onReply: () -> Unit, onSub: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(model = r.member.face.normUrl(), contentDescription = null,
-                modifier = Modifier.size(26.dp).clip(CircleShape))
+            AsyncImage(model = r.member.pic.normUrl().faceThumb(), contentDescription = "头像",
+                modifier = Modifier.size(34.dp).clip(CircleShape)
+                    .then(if (r.member.mid > 0) Modifier.clickable { onUser(r.member.mid) } else Modifier))
             Spacer(Modifier.width(8.dp))
             Text(r.member.uname, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.weight(1f))
@@ -982,10 +1036,15 @@ private fun SubReplySheet(target: Reply, aid: Long, onDismiss: () -> Unit) {
                 }
             }
             items(subs) { s ->
-                Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    Text(s.member.uname, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(s.content.message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground)
-                    Text(timeAgo(s.ctime), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                    AsyncImage(model = s.member.pic.normUrl().faceThumb(), contentDescription = "头像",
+                        modifier = Modifier.size(30.dp).clip(CircleShape))
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(s.member.uname, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.content.message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground)
+                        Text(timeAgo(s.ctime), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
             item {

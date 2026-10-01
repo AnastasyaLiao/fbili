@@ -1,11 +1,17 @@
 package com.sammy.fbili.ui.fav
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +46,7 @@ import kotlinx.coroutines.launch
 fun FavFoldersScreen(onFolder: (Long, String) -> Unit, onBack: () -> Unit) {
     val me by Account.user.collectAsState()
     var folders by remember { mutableStateOf<List<FavFolder>>(emptyList()) }
+    var covers by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
     var error by remember { mutableStateOf<String?>(null) }
     var tick by remember { mutableIntStateOf(0) }
 
@@ -47,18 +54,37 @@ fun FavFoldersScreen(onFolder: (Long, String) -> Unit, onBack: () -> Unit) {
         val mid = Account.uid().takeIf { it > 0 } ?: me?.mid ?: run { error = "请先登录"; return@LaunchedEffect }
         error = null
         try { folders = Api.favFolders(mid) } catch (e: Exception) { error = e.message }
+        // 封面取每个收藏夹第一条视频：逐夹轻量请求，先到先上屏，失败留占位
+        folders.forEach { f ->
+            runCatching {
+                val d = Api.favResources(f.id, 1)
+                val first: FavMedia? = d.listT<FavMedia>("medias").firstOrNull()
+                first?.cover?.takeIf { it.isNotEmpty() }
+                    ?.let { covers = covers + (f.id to it) }
+            }
+        }
     }
-    if (error != null && folders.isEmpty()) {
-        ErrorBox(error) { tick++ }
-        return
-    }
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(folders) { f ->
-            ListRow(
-                title = f.title, cover = "", sub = "",
-                extra = "${f.mediaCount} 个内容",
-                onClick = { onFolder(f.id, f.title) },
-            )
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回",
+                    tint = MaterialTheme.colorScheme.onBackground)
+            }
+            Text("我的收藏", fontSize = 17.sp, color = MaterialTheme.colorScheme.onBackground)
+        }
+        if (error != null && folders.isEmpty()) {
+            ErrorBox(error, Modifier.weight(1f)) { tick++ }
+            return@Column
+        }
+        LazyColumn(Modifier.weight(1f)) {
+            items(folders) { f ->
+                ListRow(
+                    title = f.title, cover = covers[f.id].orEmpty(), sub = "",
+                    extra = "${f.mediaCount} 个内容",
+                    onClick = { onFolder(f.id, f.title) },
+                )
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,6 +41,7 @@ import com.sammy.fbili.net.normUrl
 import com.sammy.fbili.net.num
 import com.sammy.fbili.net.str
 import com.sammy.fbili.ui.common.FeedCard
+import com.sammy.fbili.ui.common.faceThumb
 import com.sammy.fbili.ui.common.ListRow
 import com.sammy.fbili.ui.common.PagedGrid
 import com.sammy.fbili.ui.common.PagedList
@@ -67,16 +69,16 @@ fun HomeScreen(
             Text("fbili", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.width(12.dp))
             Row(
-                Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 11.dp)
+                Modifier.weight(1f).height(44.dp).padding(horizontal = 12.dp)
                     .background(MaterialTheme.colorScheme.surfaceVariant,
-                        androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                        androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
                     .clickable(onClick = onSearch),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Search, null, Modifier.width(18.dp),
+                Icon(Icons.Filled.Search, null, Modifier.width(20.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(8.dp))
-                Text("搜索 B 站内容", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                Text("搜索 B 站内容", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
             }
             Spacer(Modifier.width(8.dp))
             Box(
@@ -88,7 +90,7 @@ fun HomeScreen(
                 val face = user?.face.orEmpty()
                 if (face.isNotEmpty() && user?.isLogin == true) {
                     coil.compose.AsyncImage(
-                        model = face.normUrl(), contentDescription = "头像",
+                        model = face.normUrl().faceThumb(), contentDescription = "头像",
                         modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     )
                 } else {

@@ -56,10 +56,8 @@ class DanmakuView(context: Context) : View(context) {
         var width = 0f; var mode = 1; var fixed = false; var startMs = 0L
     }
 
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-        setShadowLayer(2f, 1f, 1f, Color.argb(160, 0, 0, 0))
-    }
+    // 描边已保证可读性，去掉 shadowLayer（低端机上最贵的一项）
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val strokePaint = Paint(paint).apply { style = Paint.Style.STROKE }
 
     private val pool = ArrayList<Active>(64)
@@ -67,7 +65,7 @@ class DanmakuView(context: Context) : View(context) {
     private var items: List<DanmakuItem> = emptyList()
     private var pointer = 0
     var show = true
-        set(v) { field = v; if (!v) active.clear(); invalidate() }
+        set(v) { field = v; if (!v) active.clear(); dirty = true; invalidate() }
     var timeProvider: () -> Long = { 0L }
     var paused = false
     private var lastFrameNs = 0L
@@ -77,14 +75,22 @@ class DanmakuView(context: Context) : View(context) {
     private var laneCount = 10
 
     private var attached = false
+    // 低端机省电防卡顿：30fps 节奏 + 无活动弹幕时跳过重绘
+    private var halfTick = false
+    private var dirty = true
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!attached || !isShown) return
+            Choreographer.getInstance().postFrameCallback(this)
+            if (halfTick) { halfTick = false; return }
+            halfTick = true
             val dt = if (lastFrameNs == 0L) 0f else (frameTimeNanos - lastFrameNs) / 1_000_000_000f
             lastFrameNs = frameTimeNanos
             advance(dt)
-            invalidate()
-            Choreographer.getInstance().postFrameCallback(this)
+            if (dirty || active.isNotEmpty()) {
+                dirty = false
+                invalidate()
+            }
         }
     }
 
@@ -106,13 +112,13 @@ class DanmakuView(context: Context) : View(context) {
     }
 
     fun setData(list: List<DanmakuItem>) {
-        items = list; pointer = 0; active.forEach { pool.add(it) }; active.clear()
+        items = list; pointer = 0; active.forEach { pool.add(it) }; active.clear(); dirty = true
     }
 
     /** 拖动进度后重定位 */
     fun seekTo(ms: Long) {
         pointer = items.binarySearchIndex(ms)
-        active.forEach { pool.add(it) }; active.clear()
+        active.forEach { pool.add(it) }; active.clear(); dirty = true
     }
 
     fun addLocal(text: String) {

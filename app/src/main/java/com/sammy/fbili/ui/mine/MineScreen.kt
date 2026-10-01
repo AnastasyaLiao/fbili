@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.sammy.fbili.data.Account
 import com.sammy.fbili.net.normUrl
+import com.sammy.fbili.ui.common.faceThumb
 
 @Composable
 fun MineScreen(
@@ -46,7 +47,7 @@ fun MineScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (user != null) {
-                AsyncImage(model = user!!.face.normUrl(), contentDescription = null,
+                AsyncImage(model = user!!.face.normUrl().faceThumb(), contentDescription = null,
                     modifier = Modifier.size(56.dp).clip(CircleShape))
                 Spacer(Modifier.width(14.dp))
                 Column {

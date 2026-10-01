@@ -29,7 +29,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // 低端机优化：R8 缩减 dex（冷启动更快）；库自带 consumer 规则，仅补崩溃定位与 WebView 兜底
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("self")
         }
     }
