@@ -63,6 +63,7 @@
 **Android 4.x 结论（不可运行，非缺陷）**：APK manifest minSdkVersion=21，Android 4.x（API 15–19）包管理器会以 INSTALL_FAILED_OLDER_SDK 直接拒装；且 Compose、AndroidX（Activity 1.9 等）、Media3、OkHttp 4.x 全线官方下限即 API 21，低于 21 需放弃 Compose 重写 UI 层。本机亦无 API 19 系统镜像（Apple Silicon 模拟器不支持 x86 老镜像），无法真装演示，判定依据为包与依赖的硬下限。
 
 **未实测（环境受限，需在用户手机复测）**：
+- 手机号登录修复（1.0.1）：根因是 B站下线全部 H5 登录路由（h5-app/passport-login 等一律 302→www.bilibili.com/404），WebView 改加载官方 PC 登录页 `passport.bilibili.com/login`+桌面 UA。API 34 AVD 实测页面完整渲染（密码登录/短信登录/第三方登录齐）；API 27 AVD 因镜像自带 Chromium 61 渲染进程被 seccomp 击杀（signal 31，环境问题非代码问题），恰好验证了新增的 `onRenderProcessGone` 兜底——App 不再连坐闪退，显示"登录页加载失败/点击重试"且重试可反复兜住。真实发短信登录仍未走（不发真短信）。
 - 扫码/短信登录真机链路：接口与状态机已按官方协议实现并编译通过，未走完一次真实登录（需手机 B站 App 扫码）。
 - 本地文件播放（playFile 路径）：API 21 模拟器 FUSE 导致推送文件对应用不可见，改为「缓存」入口验证；下载器已加内部存储回退，真机可用。
 - 搜索结果双列布局：`/x/web-interface/search/type` 对本机出口 IP（AWS 数据中心）返回 HTML 风控页（已改为友好提示），代码路径与已验证的推荐流共用同一卡片组件，境内网络预期正常。

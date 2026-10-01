@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -142,6 +143,8 @@ private fun QrLogin(onDone: () -> Unit) {
 private fun WebLogin(onDone: () -> Unit) {
     val ctx = LocalContext.current
     var grabbed by remember { mutableStateOf(false) }
+    var reloadKey by remember { mutableIntStateOf(0) }
+    var loadFailed by remember { mutableStateOf(false) }
 
     fun harvest(): Boolean {
         val cm = CookieManager.getInstance()
@@ -171,30 +174,48 @@ private fun WebLogin(onDone: () -> Unit) {
         }
     }
 
-    Column {
-        AndroidView(
-            factory = { c ->
-                WebView(c).apply {
-                    setBackgroundColor(AColor.WHITE)
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    // 登录页是 h5 页面，必须用移动 UA；API/播放的桌面 UA（Net.UA）不适用于这里
-                    settings.userAgentString =
-                        "Mozilla/5.0 (Linux; Android 13; PHU110) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.119 Mobile Safari/537.36"
-                    CookieManager.getInstance().setAcceptCookie(true)
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            if (!grabbed && harvest()) finishLogin()
-                        }
-                    }
-                    loadUrl(
-                        "https://passport.bilibili.com/h5-app/passport-login" +
-                            "?mode=1&go_url=https%3A%2F%2Fm.bilibili.com%2F"
-                    )
+    Column(Modifier.fillMaxSize()) {
+        if (loadFailed) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("登录页加载失败", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    Text("点击重试", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp,
+                        modifier = Modifier.clickable { loadFailed = false; reloadKey++ })
                 }
-            },
-            modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp),
-        )
+            }
+        } else key(reloadKey) {
+            AndroidView(
+                factory = { c ->
+                    WebView(c).apply {
+                        setBackgroundColor(AColor.WHITE)
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        // B站已下线全部 H5 登录路由（h5-app/passport-login 等 302→/404），
+                        // 唯一存活的是 PC 登录页，故用桌面 UA 加载它，页面内含"手机号登录"入口
+                        settings.userAgentString =
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                        CookieManager.getInstance().setAcceptCookie(true)
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                if (!grabbed && harvest()) finishLogin()
+                            }
+                            // API 26+：渲染进程挂掉若不接管，WebView 会连坐 abort 整个 App（"Application Error"）
+                            override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                                android.util.Log.w("fbili-auth", "webview renderer gone (crash=${detail.didCrash()})")
+                                loadFailed = true
+                                return true   // 我们接管：只重建 WebView，不杀进程
+                            }
+                            override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                                if (request?.isForMainFrame == true) loadFailed = true
+                            }
+                        }
+                        loadUrl("https://passport.bilibili.com/login")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp),
+            )
+        }
         Text(
             "已完成登录？点这里进入",
             color = MaterialTheme.colorScheme.primary, fontSize = 14.sp,
