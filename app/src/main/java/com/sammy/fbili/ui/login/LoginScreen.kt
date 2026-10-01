@@ -178,7 +178,9 @@ private fun WebLogin(onDone: () -> Unit) {
                     setBackgroundColor(AColor.WHITE)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
-                    settings.userAgentString = Net.UA
+                    // 登录页是 h5 页面，必须用移动 UA；API/播放的桌面 UA（Net.UA）不适用于这里
+                    settings.userAgentString =
+                        "Mozilla/5.0 (Linux; Android 13; PHU110) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.119 Mobile Safari/537.36"
                     CookieManager.getInstance().setAcceptCookie(true)
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {

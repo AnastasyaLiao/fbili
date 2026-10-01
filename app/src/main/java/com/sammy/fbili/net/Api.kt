@@ -41,15 +41,15 @@ object Api {
     suspend fun playurl(bvid: String, cid: Long, epId: Long = 0): PlayResult =
         (if (epId > 0)
             Net.api(Net.API, "/pgc/player/web/playurl",
-                mapOf("ep_id" to "$epId", "cid" to "$cid", "fnval" to "4048", "fourk" to "1"), referer = WEB)
+                mapOf("ep_id" to "$epId", "cid" to "$cid", "fnver" to "0", "fnval" to "4048", "fourk" to "1"), referer = WEB)
         else
             Net.api(Net.API, "/x/player/playurl",
-                mapOf("bvid" to bvid, "cid" to "$cid", "fnval" to "4048", "fourk" to "1"), referer = WEB)).asT()
+                mapOf("bvid" to bvid, "cid" to "$cid", "fnver" to "0", "fnval" to "4048", "fourk" to "1"), referer = WEB)).asT()
 
     /** 下载用：mp4 单流（fnval=0），音视频合并但清晰度受限 */
     suspend fun playurlMp4(bvid: String, cid: Long, qn: Int): PlayResult =
         Net.api(Net.API, "/x/player/playurl",
-            mapOf("bvid" to bvid, "cid" to "$cid", "qn" to "$qn", "fnval" to "0", "high_quality" to "1"),
+            mapOf("bvid" to bvid, "cid" to "$cid", "qn" to "$qn", "fnver" to "0", "fnval" to "0", "high_quality" to "1"),
             referer = WEB).asT()
 
     suspend fun danmakuXml(cid: Long): String = Net.rawText(Net.COMMENT, "/${cid}.xml", referer = WEB)

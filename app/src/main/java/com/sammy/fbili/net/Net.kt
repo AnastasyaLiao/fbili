@@ -34,8 +34,10 @@ object Net {
     const val SSEARCH = "https://s.search.bilibili.com"
     const val LIVE = "https://api.live.bilibili.com"
     const val COMMENT = "https://comment.bilibili.com"
+    // 与 bili_you 一致：全链路（API + 播放器）统一桌面 Safari UA。
+    // 实测：移动 Chrome UA 拿到的 DASH 直链被 CDN 403，换此 UA 后 200 可播
     const val UA =
-        "Mozilla/5.0 (Linux; Android 13; PHU110) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.119 Mobile Safari/537.36"
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_3_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15"
 
     val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
     val cookies = ConcurrentHashMap<String, String>()
@@ -78,7 +80,7 @@ object Net {
         params.forEach { (k, v) -> url.addQueryParameter(k, v) }
         return Request.Builder().url(url.build()).get()
             .header("User-Agent", UA)
-            .header("Referer", referer ?: "https://m.bilibili.com")
+            .header("Referer", referer ?: "https://www.bilibili.com")
             .build()
     }
 
@@ -87,8 +89,8 @@ object Net {
         params.forEach { (k, v) -> form.add(k, v) }
         return Request.Builder().url(base + path).post(form.build())
             .header("User-Agent", UA)
-            .header("Referer", referer ?: "https://m.bilibili.com")
-            .header("Origin", referer?.trimEnd('/', ':', '/') ?: "https://m.bilibili.com")
+            .header("Referer", referer ?: "https://www.bilibili.com")
+            .header("Origin", referer?.trimEnd('/', ':', '/') ?: "https://www.bilibili.com")
             .build()
     }
 
@@ -113,10 +115,19 @@ object Net {
     suspend fun api(
         base: String, path: String, params: Map<String, String> = emptyMap(),
         post: Map<String, String>? = null, referer: String? = null,
-    ): kotlinx.serialization.json.JsonElement {
+    ): JsonElement {
         val req = if (post != null) buildPost(base, path, post, referer)
         else buildGet(base, path, params, referer)
-        return unwrap(raw(req))
+        return try {
+            unwrap(raw(req))
+        } catch (e: BiliError) {
+            // 风控（-352 风控 / -412 请求被限制）：换一个新 buvid 静默重试一次，多数场景直接恢复
+            if (e.code == -352 || e.code == -412) {
+                delay(1200L)
+                refreshBuvid()
+                unwrap(raw(req))
+            } else throw e
+        }
     }
 
     private fun unwrap(text: String): JsonElement {
@@ -163,10 +174,18 @@ object Net {
         if (cookies.containsKey("buvid3")) return
         runCatching {
             val d = api(API, "/x/frontend/finger/spi").jsonObject
-            (d["b_3"] ?: d["b_4"])?.jsonPrimitive?.contentOrNull?.let {}
             d["b_3"]?.jsonPrimitive?.contentOrNull?.let { cookies["buvid3"] = it }
             d["b_4"]?.jsonPrimitive?.contentOrNull?.let { cookies["buvid4"] = it }
             Account.persistCookies(cookies)
+        }
+    }
+
+    /** 风控后用 SPI 重新换取新设备指纹再重试 */
+    private suspend fun refreshBuvid() {
+        runCatching {
+            cookies.remove("buvid3")
+            cookies.remove("buvid4")
+            ensureBuvid()
         }
     }
 }
