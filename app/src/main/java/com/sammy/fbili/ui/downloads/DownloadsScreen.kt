@@ -47,6 +47,14 @@ fun DownloadsScreen(onPlay: (String, String, Long) -> Unit, onBack: () -> Unit) 
             }
             items(running) { t -> TaskRow(t) }
         }
+        val finished = Downloader.tasks.filter { it.state > com.sammy.fbili.dl.Downloader.RUNNING }
+        if (finished.isNotEmpty()) {
+            item {
+                Text("任务记录", fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(14.dp))
+            }
+            items(finished) { t -> TaskRow(t) }
+        }
         item {
             Text("本地视频", fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(14.dp))

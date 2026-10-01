@@ -23,7 +23,11 @@ object Downloader {
     private val runningCount = AtomicInteger(0)
     private const val MAX_CONCURRENT = 2
 
-    fun dir(ctx: Context): File = File(ctx.getExternalFilesDir(null), "downloads").apply { mkdirs() }
+    fun dir(ctx: Context): File {
+        // 部分低端机/模拟器外部私有目录不可用，回退到内部存储
+        val ext = ctx.getExternalFilesDir(null) ?: File(ctx.filesDir, "files")
+        return File(ext, "downloads").apply { mkdirs() }
+    }
 
     fun fileFor(ctx: Context, bvid: String, cid: Long): File = File(dir(ctx), "${bvid}_${cid}.mp4")
 

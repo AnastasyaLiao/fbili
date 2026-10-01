@@ -6,3 +6,5 @@ build/
 bili_you-main/
 keystore.properties
 fbili.jks
+.DS_Store
+.kotlin/
