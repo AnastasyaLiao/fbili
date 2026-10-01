@@ -85,7 +85,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(20.dp))
         Text(
-            "fbili v1.0.0\n原生 Kotlin 实现，独立于任何既有客户端。\n弹幕为本地显示（不发服务器），发送弹幕请以官方 App 为准。",
+            "fbili v1.0.1\n原生 Kotlin 实现，独立于任何既有客户端。\n弹幕为本地显示（不发服务器），发送弹幕请以官方 App 为准。",
             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 20.dp),
         )

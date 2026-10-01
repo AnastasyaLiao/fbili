@@ -76,5 +76,10 @@ object Account {
         Net.cookies.clear()
         _user.value = null
         if (::ds.isInitialized) ds.edit { it[KEY_COOKIES] = "" }
+        // WebView 里残留的 B站 cookie 也要清掉，否则下次打开登录页会被自动收割"复活"
+        runCatching {
+            android.webkit.CookieManager.getInstance().removeAllCookies(null)
+            android.webkit.CookieManager.getInstance().flush()
+        }
     }
 }

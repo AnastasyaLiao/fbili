@@ -13,11 +13,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +46,8 @@ fun MineScreen(
     onUser: (Long) -> Unit,
 ) {
     val user by Account.user.collectAsState()
+    val scope = rememberCoroutineScope()
+    var askLogout by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -68,6 +77,34 @@ fun MineScreen(
         MenuRow("我的关注", onFollowing)
         MenuRow("离线缓存", onDownloads)
         MenuRow("设置（含深色模式）", onSettings)
+        if (user != null) {
+            Spacer(Modifier.height(18.dp))
+            Row(
+                Modifier.fillMaxWidth().clickable { askLogout = true }
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("退出登录", fontSize = 15.sp, color = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.weight(1f))
+                Text("›", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+    if (askLogout) {
+        AlertDialog(
+            onDismissRequest = { askLogout = false },
+            title = { Text("退出登录") },
+            text = { Text("退出后历史记录、收藏等账号内容将不可见，需要重新登录才能恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    askLogout = false
+                    scope.launch { Account.logout() }
+                }) { Text("退出", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { askLogout = false }) { Text("取消") }
+            },
+        )
     }
 }
 
