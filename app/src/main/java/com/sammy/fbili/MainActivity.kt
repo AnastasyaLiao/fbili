@@ -100,6 +100,7 @@ fun AppRoot() {
                     onVideo = { b, a -> nav.navigate("video/$b/$a/0") },
                     onSearch = { nav.navigate("search/") },
                     onLive = { id -> nav.navigate("live/$id") },
+                    onLogin = { if (com.sammy.fbili.data.Account.isLogin) nav.navigate("user/${com.sammy.fbili.data.Account.uid()}") else nav.navigate("login") },
                 )
             }
             composable("bangumi") {

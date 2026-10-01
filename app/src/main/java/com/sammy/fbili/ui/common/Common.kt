@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -17,6 +18,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
@@ -140,22 +146,7 @@ fun <T> PagedList(
     }
     LazyColumn(modifier.fillMaxSize(), state = state) {
         items(paging.items.size) { i -> itemContent(paging.items[i]) }
-        item {
-            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                when {
-                    paging.loading -> Text("加载中…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                    paging.error != null -> Row(horizontalArrangement = Arrangement.Center) {
-                        Text("${paging.error}", color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = { if (paging.page == 0) paging.refresh() else paging.more() }) {
-                            Text("重试", fontSize = 13.sp)
-                        }
-                    }
-                    !paging.hasMore && paging.items.isNotEmpty() ->
-                        Text("没有更多了", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                }
-            }
-        }
+        item { PagingFooter(paging) }
         if (paging.items.isEmpty() && paging.error != null) {
             item { Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                 Button(onClick = { paging.refresh() }) { Text("重新加载") }
@@ -163,11 +154,61 @@ fun <T> PagedList(
         }
     }
 }
+
+/** 双列网格分页：推荐流用，触底翻页与底部状态和 PagedList 一致 */
+@Composable
+fun <T> PagedGrid(
+    paging: Paging<T>,
+    modifier: Modifier = Modifier,
+    state: LazyGridState = rememberLazyGridState(),
+    itemContent: @Composable (T) -> Unit,
+) {
+    LaunchedEffect(paging) {
+        if (paging.items.isEmpty() && !paging.loading && paging.error == null) paging.refresh()
+    }
+    val atBottom = androidx.compose.runtime.derivedStateOf {
+        val info = state.layoutInfo
+        info.visibleItemsInfo.isNotEmpty() &&
+            info.visibleItemsInfo.last().index >= info.totalItemsCount - 4
+    }
+    LaunchedEffect(state, paging) {
+        androidx.compose.runtime.snapshotFlow { atBottom.value }.collect { if (it) paging.more() }
+    }
+    LazyVerticalGrid(
+        GridCells.Fixed(2),
+        modifier.fillMaxSize(),
+        state = state,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp),
+    ) {
+        items(paging.items.size) { i -> itemContent(paging.items[i]) }
+        item(span = { GridItemSpan(maxLineSpan) }) { PagingFooter(paging) }
+    }
+}
+
+@Composable
+private fun <T> PagingFooter(paging: Paging<T>) {
+    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+        when {
+            paging.loading -> Text("加载中…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            paging.error != null -> Row(horizontalArrangement = Arrangement.Center) {
+                Text("${paging.error}", color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = { if (paging.page == 0) paging.refresh() else paging.more() }) {
+                    Text("重试", fontSize = 13.sp)
+                }
+            }
+            !paging.hasMore && paging.items.isNotEmpty() ->
+                Text("没有更多了", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        }
+    }
+}
 @Composable
 fun Cover(url: String, modifier: Modifier = Modifier, dur: Long = -1, badge: String = "") {
     Box(modifier = modifier.clip(RoundedCornerShape(8.dp))) {
         AsyncImage(
-            model = url, contentDescription = null,
+            model = url.normUrl(), contentDescription = null,
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
             contentScale = ContentScale.Crop,
         )
@@ -214,9 +255,9 @@ fun FeedCard(item: FeedItem, onClick: () -> Unit, modifier: Modifier = Modifier)
     VideoCard(
         VideoItem(
             bvid = item.keyBvid(), aid = item.keyAid(), title = item.title,
-            pic = item.cover.normUrl(), duration = item.duration,
-            owner = item.upper?.let { com.sammy.fbili.net.Owner(name = it.name, mid = it.mid) },
-            stat = com.sammy.fbili.net.Stat(view = item.count),
+            pic = item.coverUrl(), duration = item.duration,
+            owner = item.upperOwner(),
+            stat = com.sammy.fbili.net.Stat(view = item.viewCount(), danmaku = item.danmakuCount()),
         ), onClick, modifier,
     )
 }

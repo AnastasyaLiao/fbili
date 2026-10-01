@@ -58,7 +58,7 @@ object Dur : KSerializer<Long> {
 
 fun String.normUrl(): String = when {
     startsWith("//") -> "https:$this"
-    startsWith("http") -> this
+    startsWith("http://") -> "https://" + drop(5)   // Android 9+ 禁明文流量，B站静态资源均支持 https
     else -> this
 }
 
@@ -100,20 +100,29 @@ data class Stat(
     @Serializable(with = LLong::class) val share: Long = 0,
 )
 
-// ---------- 首页推荐 ----------
+// ---------- 首页推荐（V3 用 pic/owner/stat，旧结构用 cover/upper/count，两套都兼容） ----------
 @Serializable
 data class FeedItem(
     val title: String = "",
     val param: String = "",
     @Serializable(with = LLong::class) val id: Long = 0,
+    val bvid: String = "",
     val cover: String = "",
+    val pic: String = "",
     @Serializable(with = LLong::class) val count: Long = 0,
+    val stat: Stat? = null,
     @Serializable(with = Dur::class) val duration: Long = 0,
     val upper: Owner? = null,
+    val owner: Owner? = null,
     @SerialName("short_link_v2") val shortLink: String = "",
     val uri: String = "",
 ) {
+    fun coverUrl(): String = cover.ifEmpty { pic }
+    fun upperOwner(): Owner? = upper ?: owner
+    fun viewCount(): Long = if (count > 0) count else stat?.view ?: 0
+    fun danmakuCount(): Long = stat?.danmaku ?: 0
     fun keyBvid(): String = when {
+        bvid.startsWith("BV") -> bvid
         param.startsWith("BV") -> param
         uri.contains("BV") -> "BV" + uri.substringAfter("BV").take(10)
         shortLink.contains("BV") -> "BV" + shortLink.substringAfter("BV").take(10)
