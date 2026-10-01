@@ -41,6 +41,7 @@ import kotlinx.coroutines.delay
 fun LocalPlayScreen(path: String, title: String, aid: Long, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val ctl = remember { PlayerCtl(ctx) }
+    LaunchedEffect(ctl) { ctl.onError = { msg -> android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show() } }
     var playing by remember { mutableStateOf(false) }
     var pos by remember { mutableLongStateOf(0L) }
     var dur by remember { mutableLongStateOf(0L) }

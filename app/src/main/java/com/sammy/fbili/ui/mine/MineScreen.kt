@@ -50,7 +50,7 @@ fun MineScreen(
                     modifier = Modifier.size(56.dp).clip(CircleShape))
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text(user!!.uname, fontSize = 17.sp, color = MaterialTheme.colorScheme.onBackground)
+                    Text(user!!.uname.ifEmpty { "已登录" }, fontSize = 17.sp, color = MaterialTheme.colorScheme.onBackground)
                     Text("Lv${user!!.levelInfo?.currentLevel ?: 1}" +
                         (if ((user!!.vip?.status ?: 0) == 1) " · 大会员" else ""),
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

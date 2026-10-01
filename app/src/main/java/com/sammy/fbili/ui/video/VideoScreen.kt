@@ -149,6 +149,7 @@ fun VideoScreen(
     var subSheet by remember { mutableStateOf<Reply?>(null) }
 
     val ctl = remember { PlayerCtl(ctx) }
+    LaunchedEffect(ctl) { ctl.onError = { msg -> Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show() } }
 
     // ---- 当前生效的 bvid/aid/cid/ep ----
     fun curBvid(): String = season?.eps()?.getOrNull(epIdx)?.bvid ?: (view?.bvid ?: bvid)

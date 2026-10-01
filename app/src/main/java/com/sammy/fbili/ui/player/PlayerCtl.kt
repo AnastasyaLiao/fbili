@@ -23,6 +23,30 @@ class PlayerCtl(private val context: Context) {
         .setSeekForwardIncrementMs(5000)
         .build()
 
+    /** 播放失败对外回调（主线程），UI 层用来弹提示；同时落 logcat 便于远程排障 */
+    var onError: ((String) -> Unit)? = null
+
+    init {
+        exo.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                val cause = error.errorCauseMessage()
+                android.util.Log.e("fbili-play", "${error.errorCodeName} cause=${error.cause?.message}", error)
+                mainHandler.post { onError?.invoke("播放失败：$cause") }
+            }
+        })
+    }
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun androidx.media3.common.PlaybackException.errorCauseMessage(): String = when (errorCode) {
+        androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+            if (cause?.message?.contains("403") == true) "视频源 403（网络或地区限制）" else "视频源 HTTP 错误"
+        androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "连不上视频服务器，检查网络"
+        androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "连接视频服务器超时"
+        androidx.media3.common.PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> "直播流断开"
+        else -> errorCodeName
+    }
+
     private val httpFactory: DataSource.Factory = DefaultHttpDataSource.Factory()
         .setUserAgent(Net.UA)
         .setAllowCrossProtocolRedirects(true)

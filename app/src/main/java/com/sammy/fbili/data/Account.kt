@@ -50,11 +50,26 @@ object Account {
         }
     }
 
+    /** 拉取登录态：失败自动重试 3 次；仍失败但本地有 SESSDATA 时按 cookie 兜底显示已登录 */
     suspend fun refreshNav() {
-        val nav = runCatching {
-            Net.json.decodeFromJsonElement(Nav.serializer(), Net.api(Net.API, "/x/web-interface/nav"))
-        }.getOrNull()
-        _user.value = nav?.takeIf { it.isLogin }
+        repeat(3) { i ->
+            val nav = runCatching {
+                Net.json.decodeFromJsonElement(Nav.serializer(), Net.api(Net.API, "/x/web-interface/nav"))
+            }.getOrNull()
+            android.util.Log.d("fbili-auth", "nav try=$i isLogin=${nav?.isLogin} mid=${nav?.mid}")
+            if (nav != null && nav.isLogin) { _user.value = nav; return }
+            if (nav != null && !nav.isLogin) { _user.value = null; return }   // 明确未登录，不再重试
+            kotlinx.coroutines.delay(800L * (i + 1))
+        }
+        val sess = Net.cookies["SESSDATA"]
+        val uid = Net.cookies["DedeUserID"]?.toLongOrNull() ?: 0L
+        if (!sess.isNullOrEmpty()) {
+            _user.value = Nav(isLogin = true, mid = uid)   // cookie 在，视为已登录，昵称头像下次成功拉取时补齐
+        }
+    }
+
+    fun refreshAsync() {
+        AppScope.launch { runCatching { refreshNav() } }
     }
 
     suspend fun logout() {

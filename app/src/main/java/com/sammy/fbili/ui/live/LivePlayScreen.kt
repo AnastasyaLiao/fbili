@@ -45,6 +45,7 @@ fun LivePlayScreen(roomId: Long, onBack: () -> Unit) {
     var ok by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }
     var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(ctl) { ctl.onError = { msg -> err = msg } }
 
     LaunchedEffect(roomId, tick) {
         ok = false; err = null; state = "正在获取直播流…"

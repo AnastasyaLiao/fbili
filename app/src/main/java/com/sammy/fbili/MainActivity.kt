@@ -52,6 +52,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // 回到前台补一次登录态（一次轻量请求），修复登录成功但界面未同步的问题
+        com.sammy.fbili.data.Account.refreshAsync()
+    }
+
     fun setLandscape(on: Boolean) {
         requestedOrientation = if (on) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT

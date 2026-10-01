@@ -144,47 +144,72 @@ private fun WebLogin(onDone: () -> Unit) {
     var grabbed by remember { mutableStateOf(false) }
 
     fun harvest(): Boolean {
-        val raw = CookieManager.getInstance().getCookie("https://www.bilibili.com") ?: return false
+        val cm = CookieManager.getInstance()
+        cm.flush()   // 强制把 WebView 内存 cookie 落盘，再读
+        val raw = cm.getCookie("https://www.bilibili.com")
+            ?: cm.getCookie("https://m.bilibili.com") ?: return false
         val map = raw.split(";").mapNotNull {
             val kv = it.trim().split("=", limit = 2)
             if (kv.size == 2 && kv[0] in neededCookies) kv[0] to kv[1] else null
         }.toMap()
+        android.util.Log.d("fbili-auth", "web harvest got=${map.keys}")
         if (map["SESSDATA"] == null) return false
         Net.cookies.putAll(map)
         Account.persistCookies(Net.cookies)
         return true
     }
 
-    AndroidView(
-        factory = { c ->
-            WebView(c).apply {
-                setBackgroundColor(AColor.WHITE)
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.userAgentString = Net.UA
-                CookieManager.getInstance().setAcceptCookie(true)
-                webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        if (!grabbed && harvest()) {
-                            grabbed = true
-                            Account.AppScope.launch {
-                                runCatching { Account.refreshNav() }
-                                ctx.postMain {
-                                    Toast.makeText(ctx, "登录成功", Toast.LENGTH_SHORT).show()
-                                    onDone()
-                                }
-                            }
+    fun finishLogin() {
+        if (grabbed) return
+        grabbed = true
+        Account.AppScope.launch {
+            runCatching { Account.refreshNav() }
+            ctx.postMain {
+                Toast.makeText(ctx, "登录成功", Toast.LENGTH_SHORT).show()
+                onDone()
+            }
+        }
+    }
+
+    Column {
+        AndroidView(
+            factory = { c ->
+                WebView(c).apply {
+                    setBackgroundColor(AColor.WHITE)
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.userAgentString = Net.UA
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            if (!grabbed && harvest()) finishLogin()
                         }
                     }
+                    loadUrl(
+                        "https://passport.bilibili.com/h5-app/passport-login" +
+                            "?mode=1&go_url=https%3A%2F%2Fm.bilibili.com%2F"
+                    )
                 }
-                loadUrl(
-                    "https://passport.bilibili.com/h5-app/passport-login" +
-                        "?mode=1&go_url=https%3A%2F%2Fm.bilibili.com%2F"
-                )
-            }
-        },
-        modifier = Modifier.fillMaxSize().padding(top = 6.dp),
-    )
+            },
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp),
+        )
+        Text(
+            "已完成登录？点这里进入",
+            color = MaterialTheme.colorScheme.primary, fontSize = 14.sp,
+            modifier = Modifier.fillMaxWidth().clickable {
+                if (harvest()) finishLogin()
+                else Toast.makeText(ctx, "还没检测到登录状态，请先在页面完成登录", Toast.LENGTH_SHORT).show()
+            }.padding(vertical = 12.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
+    // cookie 写入可能滞后于页面加载完成：轮询兜底 60 秒
+    LaunchedEffect(Unit) {
+        while (!grabbed) {
+            delay(1500)
+            if (harvest()) finishLogin()
+        }
+    }
 }
 
 private fun android.content.Context.postMain(block: () -> Unit) {
