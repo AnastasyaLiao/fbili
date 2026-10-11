@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>安全验证</title>
+<script src="https://static.geetest.com/static/tools/gt.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  body { font: 14px/1.6 "PingFang SC", "Noto Sans CJK SC", sans-serif; color: #212121; }
+  .wrap { padding: 18px 14px; }
+  .tip { color: #61666d; margin-bottom: 14px; min-height: 22px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tip" id="tip">正在准备安全验证…</div>
+  <div id="cap"></div>
+</div>
+<script>
+var GT = '__GT__', CH = '__CH__';
+
+function say(t) { document.getElementById('tip').textContent = t; }
+function log(m) { console.log('GEE ' + m); }
+window.onerror = function (m, u, l) { log('windowerror ' + m + ' @' + (u || '') + ':' + l); return false; };
+
+function back(path, params) {
+  var q = [];
+  for (var k in params) { if (params.hasOwnProperty(k)) q.push(k + '=' + encodeURIComponent(params[k])); }
+  location.href = 'fbili-captcha://' + path + (q.length ? '?' + q.join('&') : '');
+}
+
+function fail(msg) {
+  say('验证未完成：' + msg);
+  setTimeout(function () { back('fail', { msg: msg }); }, 700);
+}
+
+if (typeof initGeetest !== 'function') {
+  fail('验证组件加载失败，请检查网络');
+} else {
+  /* 参数照抄 B站登录页自己的封装（passport chunk 838 的 initGeeCode）：
+     product 用 bind 而不是 popup，且在 onReady 里直接 verify()，否则滑块根本不出现 */
+  initGeetest({
+    gt: GT, challenge: CH, offline: false, new_captcha: true,
+    protocol: 'https://', api_server: 'api.geetest.com',
+    product: 'bind', width: '100%', language: 'zh-cn'
+  }, function (captcha) {
+    log('init');
+    captcha.onReady(function () {
+      log('ready');
+      say('请完成滑块验证');
+      captcha.verify();
+    });
+    captcha.onSuccess(function () {
+      var v = captcha.getValidate();
+      log('success');
+      say('验证通过');
+      /* challenge 必须用验证结果里回传的那把（极验过程中会换），照抄原值 B站会判 -105 验证码错误 */
+      back('ok', { validate: v.geetest_validate, seccode: v.geetest_seccode,
+                   challenge: v.geetest_challenge || CH });
+    });
+    captcha.onError(function (e) {
+      var m = (e && (e.msg || e.error_code)) ? String(e.msg || e.error_code) : 'unknown';
+      log('error ' + m);
+      fail(m === 'network error' ? '网络不稳定，请稍后重试' : '验证组件异常，请返回重试');
+    });
+    captcha.onFail(function () { log('fail'); say('验证未通过，请重试'); });
+    captcha.onClose(function () { log('close'); say('请重新获取验证码完成验证'); });
+  });
+}
+</script>
+</body>
+</html>

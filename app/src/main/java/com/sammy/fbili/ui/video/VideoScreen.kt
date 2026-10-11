@@ -5,7 +5,6 @@ package com.sammy.fbili.ui.video
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
-import android.view.SurfaceView
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -107,6 +106,7 @@ import com.sammy.fbili.ui.danmaku.DanmakuRepo
 import com.sammy.fbili.ui.danmaku.DanmakuView
 import com.sammy.fbili.ui.player.PlayerCtl
 import com.sammy.fbili.ui.player.StreamPicker
+import com.sammy.fbili.ui.player.VideoSurface
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -324,12 +324,8 @@ fun VideoScreen(
                 .then(if (full) Modifier.fillMaxSize() else Modifier.aspectRatio(16f / 9f))
                 .background(Color.Black),
         ) {
-            AndroidView(
-                factory = { c -> SurfaceView(c) },
-                update = { sv -> ctl.bindSurface(sv) },
-                modifier = Modifier.align(Alignment.Center)
-                    .then(if (full) Modifier.fillMaxSize().aspectRatio(aspect) else Modifier.aspectRatio(aspect)),
-            )
+            VideoSurface(ctl, Modifier.align(Alignment.Center)
+                .then(if (full) Modifier.fillMaxSize().aspectRatio(aspect) else Modifier.aspectRatio(aspect)))
             AndroidView(
                 factory = { c ->
                     DanmakuView(c).also {

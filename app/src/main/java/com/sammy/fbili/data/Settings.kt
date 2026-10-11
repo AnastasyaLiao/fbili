@@ -16,7 +16,7 @@ object Settings {
     private val KEY_DANMAKU = intPreferencesKey("danmaku")
     private val KEY_SEARCH_HIST = stringPreferencesKey("search_hist")
 
-    private val _theme = MutableStateFlow(ThemeMode.SYSTEM)
+    private val _theme = MutableStateFlow(ThemeMode.DARK)
     val theme: StateFlow<ThemeMode> = _theme
     private val _maxQuality = MutableStateFlow(80) // 80=1080P
     val maxQuality: StateFlow<Int> = _maxQuality
@@ -28,8 +28,8 @@ object Settings {
     suspend fun init(ctx: Context) {
         runCatching {
             val p = ctx.fbDataStore.data.first()
-            _theme.value = runCatching { ThemeMode.valueOf(p[KEY_THEME] ?: "SYSTEM") }
-                .getOrDefault(ThemeMode.SYSTEM)
+            _theme.value = runCatching { ThemeMode.valueOf(p[KEY_THEME] ?: "DARK") }
+                .getOrDefault(ThemeMode.DARK)
             _maxQuality.value = p[KEY_QUALITY] ?: 80
             _danmakuOn.value = (p[KEY_DANMAKU] ?: 1) == 1
             _searchHist.value = (p[KEY_SEARCH_HIST] ?: "")

@@ -29,7 +29,7 @@ private val LightColors = lightColorScheme(
     outline = Color(0xFFE3E5E7),
 )
 
-private val DarkColors = darkColorScheme(
+internal val DarkColors = darkColorScheme(
     primary = InkInverse,
     onPrimary = Color(0xFF101014),
     secondary = Color(0xFFB7BCC4),
@@ -57,4 +57,13 @@ fun FBiliTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Un
         typography = Typography(),
         content = content,
     )
+}
+
+/**
+ * 影院主题：播放页（视频/直播/本地播放）整页恒为深色。
+ * 这些页面自带纯黑底，若跟随系统浅色就会变成"黑底 + 浅色主题的黑字"，字直接看不见。
+ */
+@Composable
+fun CinemaTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = DarkColors, typography = Typography(), content = content)
 }

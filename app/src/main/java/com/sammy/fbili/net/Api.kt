@@ -37,20 +37,22 @@ object Api {
         Net.api(Net.API, "/x/web-interface/archive/related", mapOf("bvid" to bvid)).asT<List<VideoItem>>()
 
     // ---------- 播放 ----------
-    /** epId>0 时走 PGC 接口（付费番剧也可播） */
+    /** epId>0 时走 PGC 接口（付费番剧也可播）。UGC 走 wbi 版：B站对带登录 cookie 的
+     *  旧 /x/player/playurl 会做风控，实测 wbi 版返回同样的 dash 结构 */
     suspend fun playurl(bvid: String, cid: Long, epId: Long = 0): PlayResult =
         (if (epId > 0)
             Net.api(Net.API, "/pgc/player/web/playurl",
                 mapOf("ep_id" to "$epId", "cid" to "$cid", "fnver" to "0", "fnval" to "4048", "fourk" to "1"), referer = WEB)
         else
-            Net.api(Net.API, "/x/player/playurl",
-                mapOf("bvid" to bvid, "cid" to "$cid", "fnver" to "0", "fnval" to "4048", "fourk" to "1"), referer = WEB)).asT()
+            Net.api(Net.API, "/x/player/wbi/playurl",
+                Wbi.sign(mapOf("bvid" to bvid, "cid" to "$cid", "fnver" to "0", "fnval" to "4048", "fourk" to "1")),
+                referer = WEB)).asT()
 
     /** 下载用：mp4 单流（fnval=0），音视频合并但清晰度受限 */
     suspend fun playurlMp4(bvid: String, cid: Long, qn: Int): PlayResult =
-        Net.api(Net.API, "/x/player/playurl",
-            mapOf("bvid" to bvid, "cid" to "$cid", "qn" to "$qn", "fnver" to "0", "fnval" to "0", "high_quality" to "1"),
-            referer = WEB).asT()
+        Net.api(Net.API, "/x/player/wbi/playurl",
+            Wbi.sign(mapOf("bvid" to bvid, "cid" to "$cid", "qn" to "$qn", "fnver" to "0",
+                "fnval" to "0", "high_quality" to "1")), referer = WEB).asT()
 
     suspend fun danmakuXml(cid: Long): String = Net.rawText(Net.COMMENT, "/${cid}.xml", referer = WEB)
 
@@ -241,6 +243,31 @@ object Api {
     /** 返回 code：0 成功 / 86101 未扫 / 86090 未确认 / 86038 过期；成功后 cookie 由 Net 自动落地持久化 */
     suspend fun qrPoll(key: String): JsonObject =
         Net.api(Net.PASSPORT, "/x/passport-login/web/qrcode/poll", mapOf("qrcode_key" to key)).asT()
+
+    // ---------- 手机号验证码登录（B站 web 协议，与 bili_you 同源） ----------
+    // 不再用 WebView 打开 B站登录页：PC 登录页 SPA 会把 Android 8.x 的 Chromium 61
+    // 渲染进程直接打到 SIGSEGV，而 B站已下线全部 H5/移动登录路由（一律 302→404）。
+
+    /** 人机验证参数：data.type=geetest 时用 data.geetest 的 gt/challenge 拉起极验滑块 */
+    suspend fun captchaData(): JsonObject =
+        Net.api(Net.PASSPORT, "/x/passport-login/captcha",
+            mapOf("source" to "main_web", "t" to (System.currentTimeMillis() / 1000).toString())).asT()
+
+    /** 发送短信验证码；成功返回 data.captcha_key，登录第二步必须带上 */
+    suspend fun smsSend(tel: String, token: String, challenge: String,
+                        validate: String, seccode: String): JsonObject =
+        Net.api(Net.PASSPORT, "/x/passport-login/web/sms/send", post = mapOf(
+            "cid" to "86", "tel" to tel, "source" to "main_web",
+            "token" to token, "challenge" to challenge,
+            "validate" to validate, "seccode" to seccode
+        ), referer = "https://passport.bilibili.com/login").asT()
+
+    /** 短信验证码登录；成功时 SESSDATA 等 cookie 由 Net 的 CookieJar 自动落地 */
+    suspend fun smsLogin(tel: String, code: String, captchaKey: String): JsonObject =
+        Net.api(Net.PASSPORT, "/x/passport-login/web/login/sms", post = mapOf(
+            "cid" to "86", "tel" to tel, "code" to code, "source" to "main_mini",
+            "keep" to "0", "captcha_key" to captchaKey, "go_url" to "https://www.bilibili.com"
+        ), referer = "https://passport.bilibili.com/login").asT()
 
     // ---------- 直播（轻量：推荐列表 + HLS 播放地址） ----------
     suspend fun liveRecommend(page: Int): JsonObject =

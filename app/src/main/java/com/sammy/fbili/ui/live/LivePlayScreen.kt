@@ -1,6 +1,5 @@
 package com.sammy.fbili.ui.live
 
-import android.view.SurfaceView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.sammy.fbili.net.Api
 import com.sammy.fbili.ui.player.PlayerCtl
+import com.sammy.fbili.ui.player.VideoSurface
 import kotlinx.coroutines.delay
 
 @Composable
@@ -69,8 +69,7 @@ fun LivePlayScreen(roomId: Long, onBack: () -> Unit) {
     DisposableEffect(Unit) { onDispose { ctl.release() } }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(factory = { c -> SurfaceView(c) }, update = { ctl.bindSurface(it) },
-            modifier = Modifier.align(Alignment.Center).aspectRatio(aspect))
+        VideoSurface(ctl, Modifier.align(Alignment.Center).aspectRatio(aspect))
         if (!ok) {
             Column(
                 Modifier.align(Alignment.Center).padding(20.dp),

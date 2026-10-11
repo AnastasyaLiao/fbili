@@ -4,7 +4,9 @@ import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -91,6 +93,7 @@ fun AppRoot() {
             }
         },
     ) { pad ->
+        Box(Modifier.fillMaxSize()) {
         NavHost(
             navController = nav, startDestination = "home",
             modifier = Modifier.padding(pad).consumeWindowInsets(pad),
@@ -123,7 +126,7 @@ fun AppRoot() {
                     onBack = { nav.popBackStack() },
                 )
             }
-            composable("video/{bvid}/{aid}/{ep}") { e ->
+            composable("video/{bvid}/{aid}/{ep}") { e -> com.sammy.fbili.ui.theme.CinemaTheme {
                 VideoScreen(
                     bvid = e.arguments?.getString("bvid")?.takeIf { it != "-" }.orEmpty(),
                     aid = e.arguments?.getString("aid")?.toLongOrNull() ?: 0,
@@ -133,7 +136,7 @@ fun AppRoot() {
                     onUser = { m -> nav.navigate("user/$m") },
                     onBack = { nav.popBackStack() },
                 )
-            }
+            } }
             composable("season/{sid}") { e ->
                 SeasonHost(
                     seasonId = e.arguments?.getString("sid")?.toLongOrNull() ?: 0,
@@ -148,12 +151,12 @@ fun AppRoot() {
                     onBack = { nav.popBackStack() },
                 )
             }
-            composable("live/{roomId}") { e ->
+            composable("live/{roomId}") { e -> com.sammy.fbili.ui.theme.CinemaTheme {
                 LivePlayScreen(
                     roomId = e.arguments?.getString("roomId")?.toLongOrNull() ?: 0,
                     onBack = { nav.popBackStack() },
                 )
-            }
+            } }
             composable("login") {
                 LoginScreen(onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() })
             }
@@ -178,17 +181,21 @@ fun AppRoot() {
                     nav.navigate("local/${android.net.Uri.encode(path)}/${android.net.Uri.encode(t)}/$a")
                 }, onBack = { nav.popBackStack() })
             }
-            composable("local/{path}/{title}/{aid}") { e ->
+            composable("local/{path}/{title}/{aid}") { e -> com.sammy.fbili.ui.theme.CinemaTheme {
                 com.sammy.fbili.ui.video.LocalPlayScreen(
                     path = e.arguments?.getString("path").orEmpty(),
                     title = e.arguments?.getString("title").orEmpty(),
                     aid = e.arguments?.getString("aid")?.toLongOrNull() ?: 0,
                     onBack = { nav.popBackStack() },
                 )
-            }
+            } }
             composable("following") {
                 FollowingScreen(onUser = { m -> nav.navigate("user/$m") }, onBack = { nav.popBackStack() })
             }
+        }
+            // 缓存进度悬浮窗：盖在所有页面之上，不额外吃触摸
+            com.sammy.fbili.ui.common.DownloadBubble(
+                onOpen = { nav.navigate("downloads") }, modifier = Modifier.padding(pad))
         }
     }
 }

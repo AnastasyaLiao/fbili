@@ -4,16 +4,24 @@ import android.content.Context
 import com.sammy.fbili.data.Account
 import com.sammy.fbili.net.Api
 import com.sammy.fbili.net.Net
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import okhttp3.Request
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
+/** 字段必须是 Compose 快照状态：否则下载线程写的进度界面根本收不到刷新 */
 class Task(
     val id: Int, val bvid: String, val cid: Long, val title: String, val qn: Int,
-    var state: Int = 0,   // 0队列 1下载中 2完成 3失败 4取消
-    var done: Long = 0, var total: Long = 0, var error: String = "",
-)
+    state: Int = 0,   // 0队列 1下载中 2完成 3失败 4取消
+    done: Long = 0, total: Long = 0, error: String = "",
+) {
+    var state by androidx.compose.runtime.mutableIntStateOf(state)
+    var done by androidx.compose.runtime.mutableLongStateOf(done)
+    var total by androidx.compose.runtime.mutableLongStateOf(total)
+    var error by androidx.compose.runtime.mutableStateOf(error)
+}
 
 object Downloader {
     const val QUEUED = 0; const val RUNNING = 1; const val DONE = 2; const val FAILED = 3; const val CANCELED = 4
